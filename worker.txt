@@ -1,3 +1,33 @@
+function decodeMimeHeader(text) {
+  if (!text) return "";
+  text = text.replace(/\r?\n\s+/g, ' ');
+  text = text.replace(/\?=\s+=\?/g, '?==?');
+  return text.replace(/=\?([A-Za-z0-9\-_]+)\?([BbQq])\?([^\?]+)\?=/g, (match, charset, encoding, data) => {
+    try {
+      if (encoding.toUpperCase() === 'B') {
+        const bin = atob(data);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return new TextDecoder(charset).decode(bytes);
+      } else if (encoding.toUpperCase() === 'Q') {
+        let bytes = [];
+        const body = data.replace(/_/g, ' ');
+        for (let i = 0; i < body.length; i++) {
+          if (body[i] === '=' && i + 2 < body.length) {
+            const hex = body.slice(i + 1, i + 3);
+            bytes.push(parseInt(hex, 16));
+            i += 2;
+          } else {
+            bytes.push(body.charCodeAt(i));
+          }
+        }
+        return new TextDecoder(charset).decode(new Uint8Array(bytes));
+      }
+    } catch (e) { return match; }
+    return match;
+  });
+}
+
 export default {
   // =======================================================
   // 1. EVENT: RECEIVE EMAILS
@@ -18,21 +48,19 @@ export default {
         rawEmail += decoder.decode(value);
       }
 
-      const subjectMatch = rawEmail.match(/^Subject:\s*(.+)/im);
-      const subject = subjectMatch ? subjectMatch[1].trim() : "No Subject";
-      const fromMatch = rawEmail.match(/^From:\s*(.+)/im);
+      const subject = decodeMimeHeader(message.headers.get("Subject") || "No Subject");
+      const rawFrom = message.headers.get("From") || "";
       let fromAddress = "unknown@sender.com";
       let fromName = "Unknown Sender";
 
-      if (fromMatch) {
-        const f = fromMatch[1].trim();
-        const extract = f.match(/(.*)<([^>]+)>/);
+      if (rawFrom) {
+        const extract = rawFrom.match(/(.*)<([^>]+)>/);
         if (extract) {
-          fromName = extract[1].replace(/"/g, '').trim();
+          fromName = decodeMimeHeader(extract[1].replace(/"/g, '').trim()) || extract[2].trim();
           fromAddress = extract[2].trim();
         } else {
-          fromAddress = f;
-          fromName = f;
+          fromAddress = rawFrom.trim();
+          fromName = decodeMimeHeader(rawFrom.trim());
         }
       }
 
