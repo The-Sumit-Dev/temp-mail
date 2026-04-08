@@ -67,10 +67,14 @@ export default {
       const id = message.headers.get("Message-ID") || Date.now().toString();
 
       function decodePart(fullPartBlock) {
-        const blockMatch = fullPartBlock.match(/^([\s\S]*?)\r?\n\r?\n([\s\S]*)$/);
-        if (!blockMatch) return fullPartBlock;
-        const headers = blockMatch[1];
-        let body = blockMatch[2];
+        const splitIdx = fullPartBlock.search(/\r?\n\r?\n/);
+        let headers = "";
+        let body = fullPartBlock;
+
+        if (splitIdx !== -1) {
+          headers = fullPartBlock.slice(0, splitIdx);
+          body = fullPartBlock.slice(splitIdx).trimStart();
+        }
 
         if (headers.match(/Content-Transfer-Encoding:\s*base64/i)) {
           try {
@@ -82,7 +86,7 @@ export default {
           } catch (e) { return body; }
         }
 
-        if (headers.match(/Content-Transfer-Encoding:\s*quoted-printable/i) || body.includes('=')) {
+        if (headers.match(/Content-Transfer-Encoding:\s*quoted-printable/i)) {
           let bytes = [];
           for (let i = 0; i < body.length; i++) {
             if (body[i] === '=' && i + 1 < body.length) {
@@ -108,17 +112,33 @@ export default {
       let bodyPart = "";
       let htmlPart = "";
 
-      const blocks = rawEmail.split(/\r?\n--[a-zA-Z0-9_\-\.\=\+]+/);
+      const contentType = message.headers.get("Content-Type") || "";
+      const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^;\s]+))/i);
+      const boundary = boundaryMatch ? (boundaryMatch[1] || boundaryMatch[2]) : null;
+
+      let blocks = [];
+      if (boundary) {
+        blocks = rawEmail.split("--" + boundary);
+      } else {
+        blocks = rawEmail.split(/\r?\n--[a-zA-Z0-9_\-\.\=\+]+/);
+      }
+
       for (const block of blocks) {
-        if (!htmlPart && /Content-Type:\s*text\/html/i.test(block)) {
-          htmlPart = decodePart(block.trimStart());
-        } else if (!bodyPart && /Content-Type:\s*text\/plain/i.test(block)) {
-          bodyPart = decodePart(block.trimStart());
+        const cleanBlock = block.trimStart();
+        if (!htmlPart && /Content-Type:\s*text\/html/i.test(cleanBlock)) {
+          htmlPart = decodePart(cleanBlock);
+        } else if (!bodyPart && /Content-Type:\s*text\/plain/i.test(cleanBlock)) {
+          bodyPart = decodePart(cleanBlock);
         }
       }
 
       if (!bodyPart && !htmlPart) {
-        bodyPart = rawEmail.split(/\r?\n\r?\n/).slice(1).join("\n\n").trim();
+        const parts = rawEmail.split(/\r?\n\r?\n/);
+        if (parts.length > 1) {
+          bodyPart = parts.slice(1).join("\n\n").trim();
+        } else {
+          bodyPart = rawEmail.trim();
+        }
       }
 
       const snippetSource = bodyPart || (htmlPart ? htmlPart.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '').replace(/<[^>]*>?/gm, ' ') : "");
