@@ -19,7 +19,7 @@ function getBrandIcon(fromAddress) {
     if (parts.length === 2) {
         domain = parts[1].toLowerCase().trim();
     }
-    
+
     // Normalize domains for robust specific icon fetching
     if (domain.includes('facebookmail.com') || domain.includes('facebook.com')) domain = 'facebook.com';
     else if (domain.includes('instagram.com')) domain = 'instagram.com';
@@ -162,7 +162,7 @@ async function ensureAccount() {
             const state = JSON.parse(localSession);
             const ageMs = Date.now() - new Date(state.createdAt).getTime();
             if (ageMs > 24 * 60 * 60 * 1000) {
-                await api('/api/messages/purge', { method: 'POST', body: JSON.stringify({ address: state.address }) }).catch(() => {});
+                await api('/api/messages/purge', { method: 'POST', body: JSON.stringify({ address: state.address }) }).catch(() => { });
                 localStorage.removeItem('tempmail_session');
             } else {
                 emailInput.value = state.address;
@@ -186,7 +186,7 @@ async function ensureAccount() {
 
 async function newEmail() {
     try {
-        await api('/api/messages/purge', { method: 'POST', body: JSON.stringify({ address: emailInput.value }) }).catch(() => {});
+        await api('/api/messages/purge', { method: 'POST', body: JSON.stringify({ address: emailInput.value }) }).catch(() => { });
         const created = await api('/api/account/new', { method: 'POST', body: JSON.stringify({}) });
         localStorage.setItem('tempmail_session', JSON.stringify(created));
         emailInput.value = created.address;
@@ -206,7 +206,7 @@ async function setCustomEmail() {
     }
 
     try {
-        await api('/api/messages/purge', { method: 'POST', body: JSON.stringify({ address: emailInput.value }) }).catch(() => {});
+        await api('/api/messages/purge', { method: 'POST', body: JSON.stringify({ address: emailInput.value }) }).catch(() => { });
         const created = await api('/api/account/custom', {
             method: 'POST',
             body: JSON.stringify({ prefix })
@@ -244,7 +244,7 @@ async function refreshInbox() {
                 time: formatRelativeTime(message.createdAt || new Date().toISOString()),
                 createdAt: message.createdAt || new Date().toISOString()
             };
-        });
+        }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         renderInbox();
     } catch (error) {
         console.error(error);
@@ -259,16 +259,16 @@ function openMessage(messageId) {
             showNotification('Message missing locally, refresh inbox');
             return;
         }
-        
+
         modalFrom.innerText = detail.sender;
         modalSubject.innerText = detail.subject || 'No Subject';
         modalTime.innerText = detail.time;
-        
+
         const rawHtml = detail.rawHtml || '';
         const rawText = detail.rawText || '';
 
-        modalBody.innerHTML = ''; 
-        
+        modalBody.innerHTML = '';
+
         if (rawHtml.trim()) {
             const iframe = document.createElement('iframe');
             iframe.style.width = '100%';
@@ -287,11 +287,11 @@ function openMessage(messageId) {
         const smartBtn = document.getElementById('modal-smart-btn');
         smartBtn.classList.add('hidden');
         smartBtn.onclick = null;
-        
+
         const fallbackTextForLinks = rawText || rawHtml;
         const linkMatch = fallbackTextForLinks.match(/https?:\/\/[^\s"'>]+/);
         const codeMatch = fallbackTextForLinks.match(/\b(\d{4,8})\b/);
-        
+
         if (linkMatch) {
             smartBtn.classList.remove('hidden');
             smartBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="inline w-3 h-3 mr-1 -mt-0.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg> OPEN LINK`;
