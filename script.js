@@ -289,19 +289,25 @@ function openMessage(messageId) {
         smartBtn.onclick = null;
 
         const fallbackTextForLinks = rawText || rawHtml;
-        const linkMatch = fallbackTextForLinks.match(/https?:\/\/[^\s"'>]+/);
-        const codeMatch = fallbackTextForLinks.match(/\b(\d{4,8})\b/);
+        const aiCodeClean = (detail.aiCode && /^\d{4,8}$/.test(detail.aiCode)) ? detail.aiCode : null;
+        
+        const linkMatch = detail.aiLink || fallbackTextForLinks.match(/https?:\/\/[^\s"'>]+/)?.[0];
+        const codeMatch = aiCodeClean || fallbackTextForLinks.match(/\b(\d{4,8})\b/)?.[1];
 
         if (linkMatch) {
             smartBtn.classList.remove('hidden');
             smartBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="inline w-3 h-3 mr-1 -mt-0.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg> OPEN LINK`;
-            smartBtn.onclick = () => window.open(linkMatch[0], '_blank');
-        } else if (codeMatch && codeMatch[1].length > 3) {
+            smartBtn.onclick = () => window.open(linkMatch, '_blank');
+        } else if (codeMatch && codeMatch.length >= 4) {
             smartBtn.classList.remove('hidden');
-            smartBtn.innerHTML = `COPY CODE: <span class="bg-blue-500/20 px-1 py-0.5 rounded ml-1 text-blue-300">${codeMatch[1]}</span>`;
+            const codeHtml = `COPY CODE: <span class="bg-white/10 px-1.5 py-0.5 rounded ml-1 text-white border border-white/20 font-black">${codeMatch}</span>`;
+            smartBtn.innerHTML = codeHtml;
             smartBtn.onclick = () => {
-                navigator.clipboard.writeText(codeMatch[1]);
+                navigator.clipboard.writeText(codeMatch);
                 smartBtn.innerHTML = 'COPIED!';
+                setTimeout(() => {
+                    smartBtn.innerHTML = codeHtml;
+                }, 2000);
             };
         }
 
