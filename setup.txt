@@ -1,0 +1,89 @@
+===================================================
+CLOUD SERVERLESS TEMP MAIL - ULTIMATE DEPLOYMENT GUIDE
+===================================================
+
+This guide will walk you through setting up this entire temporary email architecture on a brand new Cloudflare account from absolute zero, no server required.
+
+---------------------------------------------------
+PHASE 1: DOMAIN SETUP
+---------------------------------------------------
+1. Create a free account at Cloudflare.com
+2. Click "Add a Site" and enter your domain name (e.g., yourdomain.com).
+3. Select the "Free" plan.
+4. Cloudflare will scan your DNS. Click Continue.
+5. Cloudflare will give you two "Nameservers" (e.g., chloe.ns.cloudflare.com).
+6. Log into wherever you bought your domain (GoDaddy, Namecheap, Hostinger, etc.) and replace your domain's default Nameservers with the two Cloudflare gave you.
+7. Wait 5-10 minutes. Cloudflare will send you an email when the domain is active.
+
+---------------------------------------------------
+PHASE 2: CLOUDFLARE KV DATABASE SETUP 
+---------------------------------------------------
+1. In Cloudflare's left sidebar, click "Workers & Pages".
+2. Under that menu, click "KV".
+3. Click the blue "Create a namespace" button.
+4. Type exactly: TEMP_MAIL_KV
+5. Click "Add".
+
+---------------------------------------------------
+PHASE 3: WORKER (BACKEND) SETUP
+---------------------------------------------------
+1. Go back to "Workers & Pages" -> "Overview".
+2. Click the blue "Create application" button, then click "Create Worker".
+3. Name your worker something like "temp-mail-backend", then click "Deploy".
+4. Click "Edit Code".
+5. Delete all the default code in the editor, and Paste your entire `worker.js` file into it.
+IMPORTANT: Before you click deploy, scroll down in the code to around line 107 where it says:
+`const destAddress = (message.to || "catchall@sumitbuilds.tech").toLowerCase();`
+Change "sumitbuilds.tech" to your newly purchased domain.
+6. Click the blue "Deploy" button in the top right.
+7. Click the Cloudflare back arrow (top left) to go to the Worker's main dashboard.
+8. Go to the "Settings" tab -> "Variables" section.
+9. Scroll down to "KV Namespace Bindings" and click "Add binding".
+10. For "Variable name", type exactly: TEMP_MAIL_KV
+11. For "KV namespace", click the dropdown and select the database you made in Phase 2.
+12. Click "Save and deploy".
+13. *Look at the top right of the dashboard and copy the worker's URL (it will look like https://temp-mail-backend.yourname.workers.dev). Save this for Phase 5!*
+
+---------------------------------------------------
+PHASE 4: EMAIL ROUTING (THE MAGIC CATCH-ALL)
+---------------------------------------------------
+1. Go to the main Cloudflare Dashboard and click on your website name.
+2. In the left sidebar, click "Email" -> "Email Routing".
+3. Click "Get Started". It will ask to add MX and TXT records to your DNS to allow you to receive emails. Click "Add records automatically".
+4. Go to the "Routing rules" tab at the top.
+5. Turn on the "Catch-all address" by clicking "Edit".
+6. Change the "Action" to "Send to a Worker".
+7. For the Destination, select your "temp-mail-backend" Worker from the dropdown box.
+8. Click "Save". 
+(Now, literally any email sent to ANYTHING@yourdomain.com gets physically swallowed by your Worker backend!)
+
+---------------------------------------------------
+PHASE 5: FRONTEND CODE EDITS (HTML/CSS/JS)
+---------------------------------------------------
+Before uploading the user interface, you need to point it to your new backend and your new domain.
+
+1. Open `script.js` in a text editor.
+2. Near the very top, find the line that says:
+   `const apiBase = 'https://sumitbuild.hemlatadevi198.workers.dev';`
+   Replace that link with the Worker URL you copied in Phase 3, Step 13.
+3. Open `index.html` in a text editor.
+4. Replace `.value="uux98nict@sumitbuilds.tech"` with `@yourdomain.com` placeholder text.
+5. In the custom alias section near the bottom of `index.html`, find `<span class="text-gray-600 text-sm font-bold ml-1">@sumitbuilds.tech</span>` and replace `sumitbuilds.tech` with your custom domain.
+
+---------------------------------------------------
+PHASE 6: HOSTING THE UI (CLOUDFLARE PAGES)
+---------------------------------------------------
+1. On your computer, put `index.html`, `style.css`, and `script.js` together inside a new folder named `frontend`.
+2. Go to your Cloudflare Dashboard -> "Workers & Pages" -> "Overview".
+3. Click "Create application" again, but this time click the "Pages" tab.
+4. Click "Upload assets".
+5. Give your project a name (like `tempmail-ui`) and click "Create project".
+6. Drag and drop your `frontend` folder straight into the dashed box!
+7. Click "Deploy site".
+8. When it finishes deploying, click "Continue to project".
+9. Go to the "Custom Domains" tab.
+10. Click "Set up a custom domain". 
+11. Type in your beautiful custom domain URL (like `yourdomain.com` or `mail.yourdomain.com`) and click Continue.
+12. Because Cloudflare already manages your domain, it will automatically adjust the settings. Just hit "Activate Domain".
+
+Congratulations! You have successfully built, programmed, and deployed a cutting-edge Serverless Temporary Mail infrastructure!
