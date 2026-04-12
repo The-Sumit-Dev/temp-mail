@@ -119,19 +119,18 @@
             </div>
 
             <div class="px-6 md:px-8 py-5 flex justify-between items-center bg-gray-50 border-t border-gray-100">
-                <button onclick="deleteAll()"
-                    class="text-[10px] font-black tracking-widest text-gray-400 hover:text-red-500 uppercase transition-colors">
-                    Delete All
+                <button onclick="deleteAll()" title="Delete All Messages"
+                    class="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all active:scale-90">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
                 </button>
-                <button onclick="refreshInbox()"
-                    class="action-btn px-6 py-2 rounded-lg flex items-center gap-2 text-[10px] font-black text-gray-700 tracking-widest bg-white border border-gray-200 shadow-sm">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                <button onclick="refreshInbox()" title="Refresh Inbox"
+                    class="action-btn p-3 rounded-full flex items-center justify-center text-gray-700 bg-white border border-gray-200 shadow-sm active:rotate-180 transition-transform duration-500">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                         stroke-linecap="round" stroke-linejoin="round">
                         <path d="M23 4v6h-6"></path>
                         <path d="M1 20v-6h6"></path>
                         <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
                     </svg>
-                    REFRESH
                 </button>
             </div>
         </div>
@@ -182,10 +181,9 @@
     <div id="message-modal"
         class="fixed inset-0 z-50 bg-gray-900/50 backdrop-blur-sm hidden items-center justify-center p-4 opacity-0 transition-opacity duration-300">
         <div
-            class="modal-card w-full max-w-6xl bg-[#f8f9fa] border border-gray-200 rounded-2xl md:rounded-[1.5rem] shadow-2xl flex flex-col overflow-hidden max-h-[95vh] relative text-gray-900">
-            <!-- Header bar like Gmail -->
-            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white">
-                <div class="flex flex-col min-w-0">
+            class="modal-card w-full max-w-6xl bg-[#f8f9fa] border border-gray-200 rounded-2xl md:rounded-[1.5rem] shadow-2xl flex flex-col overflow-hidden max-h-[95vh] relative text-gray-900">            <div id="modal-header-container" class="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white min-h-[80px] overflow-hidden">
+                <!-- Group 1: Email Info (Click to Expand on Mobile) -->
+                <div id="modal-info-container" onclick="toggleFullInfo()" class="flex flex-col min-w-0 mr-4 cursor-pointer group active:opacity-70 transition-opacity">
                     <h2 id="modal-subject" class="text-xl md:text-2xl font-bold tracking-tight truncate text-gray-900">
                         Subject</h2>
                     <div class="flex items-center gap-2 mt-1">
@@ -193,18 +191,37 @@
                         <span id="modal-time" class="text-[10px] font-bold text-gray-400">Time</span>
                     </div>
                 </div>
-                <div class="flex gap-2 shrink-0 ml-4">
-                    <button id="modal-smart-btn"
-                        class="hidden px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-white bg-black hover:bg-gray-800 active:scale-95 transition-all shadow-lg flex items-center gap-2">Action</button>
-                    <button onclick="closeMessageModal()"
-                        class="px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest text-gray-600 hover:bg-gray-100 transition-colors">Close</button>
+
+                <!-- Group 2: Unified Actions (AI + Mail Controls) -->
+                <div id="modal-actions-container" class="flex items-center gap-1 shrink-0 ml-auto transition-all duration-300">
+                    <!-- LOGO AND STATUS -->
+                    <div class="flex items-center gap-2">
+                        <button id="modal-smart-btn" title="AI Intelligence Scan"
+                            class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 active:scale-90 transition-all shrink-0">
+                            <img src="chatgpt.png" class="w-6 h-6 object-contain" alt="ChatGPT">
+                        </button>
+                        <div id="ai-status-container" class="flex items-center gap-2 overflow-x-auto no-scrollbar"></div>
+                    </div>
+
+                    <!-- MAIL CONTROLS (Grouped to prevent gaps) -->
+                    <div class="flex items-center gap-1">
+                        <button id="modal-delete-btn" title="Delete Message"
+                            class="p-2.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all active:scale-90">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+                        </button>
+                        <button onclick="closeMessageModal()" title="Close"
+                            class="p-2.5 rounded-xl text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition-all active:scale-90">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </button>
+                    </div>
                 </div>
             </div>
 
+
+
             <!-- Email Body Container -->
-            <div class="flex-1 overflow-auto p-4 md:p-8 bg-[#f8f9fa]">
-                <div id="modal-body"
-                    class="bg-white shadow-sm border border-gray-200 rounded-xl overflow-visible mx-auto w-full max-w-4xl min-h-full">
+            <div class="flex-1 overflow-auto p-4 md:p-8 bg-[#f8f9fa] relative">
+                <div id="modal-body" class="bg-white shadow-sm border border-gray-200 rounded-xl overflow-visible mx-auto w-full max-w-4xl min-h-full">
                     <!-- Iframe or Text injected here -->
                 </div>
             </div>
