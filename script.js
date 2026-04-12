@@ -9,8 +9,15 @@ const modalFrom = document.getElementById('modal-from');
 const modalSubject = document.getElementById('modal-subject');
 const modalTime = document.getElementById('modal-time');
 const modalBody = document.getElementById('modal-body');
+const modalDeleteBtn = document.getElementById('modal-delete-btn');
+const modalHeaderContainer = document.getElementById('modal-header-container');
+
+// AI Components (Integrated Inline)
+const modalSmartBtn = document.getElementById('modal-smart-btn');
+const aiStatusContainer = document.getElementById('ai-status-container');
 
 const apiBase = 'https://sumitbuild.hemlatadevi198.workers.dev';
+
 let inboxMessages = [];
 
 function getBrandIcon(fromAddress) {
@@ -20,7 +27,6 @@ function getBrandIcon(fromAddress) {
         domain = parts[1].toLowerCase().trim();
     }
 
-    // Normalize domains for robust specific icon fetching
     if (domain.includes('facebookmail.com') || domain.includes('facebook.com')) domain = 'facebook.com';
     else if (domain.includes('instagram.com')) domain = 'instagram.com';
     else if (domain.includes('google.com') || domain.includes('gmail.com')) domain = 'google.com';
@@ -252,11 +258,128 @@ async function refreshInbox() {
     }
 }
 
+async function deleteSingleMessage(messageId) {
+    if (!confirm('Are you sure you want to delete this email?')) return;
+    try {
+        showNotification('Deleting...');
+        await api('/api/messages/delete', {
+            method: 'POST',
+            body: JSON.stringify({
+                address: emailInput.value,
+                id: messageId
+            })
+        });
+        inboxMessages = inboxMessages.filter(m => m.id !== messageId);
+        renderInbox();
+        closeMessageModal();
+        showNotification('Message deleted');
+    } catch (error) {
+        showNotification('Delete failed: ' + error.message);
+    }
+}
+
+async function handleAISummary(detail) {
+    if (!detail) return;
+    
+    // Activate Mobile Header Swap
+    modalHeaderContainer.classList.add('ai-active');
+    
+    // UI Feedback: Progressive Dot Animation
+    let dots = 0;
+    aiStatusContainer.innerHTML = '<span class="ai-detecting">Detecting</span>';
+    const statusText = aiStatusContainer.querySelector('.ai-detecting');
+    
+    const dotInterval = setInterval(() => {
+        dots = (dots + 1) % 4;
+        statusText.innerText = 'Detecting' + '.'.repeat(dots);
+    }, 400);
+
+    modalSmartBtn.disabled = true;
+
+    const rawContent = detail.rawText || detail.snippet || '';
+    const content = rawContent.slice(0, 4000);
+    const prompt = `Act as an expert verification analyst. Extract any verification code (usually digits) or verification/login link from this email content.
+Return the result in this exact format:
+Code: [the digits or "None"]
+Link: [the full URL or "None"]
+
+Email Content:
+${content}`;
+
+    try {
+        const response = await api('/api/ai/summarize', {
+            method: 'POST',
+            body: JSON.stringify({ prompt })
+        });
+        
+        if (response.error) throw new Error(response.error);
+        
+        const aiResponse = response.content;
+        aiStatusContainer.innerHTML = ''; // Clear status
+
+        if (!aiResponse) {
+            aiStatusContainer.innerHTML = '<span class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">No results</span>';
+            return;
+        }
+
+        const lines = aiResponse.split('\n');
+        let code = 'None';
+        let link = 'None';
+
+        lines.forEach(line => {
+            const l = line.toLowerCase().trim();
+            if (l.startsWith('code:')) code = line.split(':')[1]?.trim() || 'None';
+            if (l.startsWith('link:')) link = line.split(':')[1]?.trim() || 'None';
+        });
+
+        // Backup parsing for non-standard formats
+        if (code === 'None' && aiResponse.match(/\b\d{4,8}\b/)) {
+            const match = aiResponse.match(/\b\d{4,8}\b/);
+            if (match) code = match[0];
+        }
+
+        let found = false;
+
+        if (code !== 'None' && code.length >= 4) {
+            const btn = document.createElement('button');
+            btn.className = 'ai-header-btn ai-btn-copy';
+            btn.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg> COPY CODE: ${code}`;
+            btn.onclick = () => {
+                navigator.clipboard.writeText(code);
+                showNotification('Code Copied!');
+            };
+            aiStatusContainer.appendChild(btn);
+            found = true;
+        }
+
+        if (link !== 'None' && link.startsWith('http')) {
+            const btn = document.createElement('button');
+            btn.className = 'ai-header-btn ai-btn-link';
+            btn.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg> OPEN LINK`;
+            btn.onclick = () => window.open(link, '_blank');
+            aiStatusContainer.appendChild(btn);
+            found = true;
+        }
+
+        if (!found) {
+            aiStatusContainer.innerHTML = '<span class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">No any verification code or verification link detected.</span>';
+        }
+
+    } catch (err) {
+        console.error('AI Error:', err);
+        aiStatusContainer.innerHTML = '<span class="text-[9px] font-bold text-red-400 uppercase tracking-widest">Scan Failed</span>';
+    } finally {
+        clearInterval(dotInterval);
+        modalSmartBtn.disabled = false;
+    }
+}
+
 function openMessage(messageId) {
     try {
         const detail = inboxMessages.find((m) => m.id === messageId);
         if (!detail) {
-            showNotification('Message missing locally, refresh inbox');
+            showNotification('Syncing...');
+            refreshInbox();
             return;
         }
 
@@ -284,32 +407,19 @@ function openMessage(messageId) {
             modalBody.appendChild(div);
         }
 
-        const smartBtn = document.getElementById('modal-smart-btn');
-        smartBtn.classList.add('hidden');
-        smartBtn.onclick = null;
-
-        const fallbackTextForLinks = rawText || rawHtml;
-        const aiCodeClean = (detail.aiCode && /^\d{4,8}$/.test(detail.aiCode)) ? detail.aiCode : null;
+        // Setup Buttons
+        modalDeleteBtn.onclick = () => deleteSingleMessage(messageId);
         
-        const linkMatch = detail.aiLink || fallbackTextForLinks.match(/https?:\/\/[^\s"'>]+/)?.[0];
-        const codeMatch = aiCodeClean || fallbackTextForLinks.match(/\b(\d{4,8})\b/)?.[1];
-
-        if (linkMatch) {
-            smartBtn.classList.remove('hidden');
-            smartBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="inline w-3 h-3 mr-1 -mt-0.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg> OPEN LINK`;
-            smartBtn.onclick = () => window.open(linkMatch, '_blank');
-        } else if (codeMatch && codeMatch.length >= 4) {
-            smartBtn.classList.remove('hidden');
-            const codeHtml = `COPY CODE: <span class="bg-white/10 px-1.5 py-0.5 rounded ml-1 text-white border border-white/20 font-black">${codeMatch}</span>`;
-            smartBtn.innerHTML = codeHtml;
-            smartBtn.onclick = () => {
-                navigator.clipboard.writeText(codeMatch);
-                smartBtn.innerHTML = 'COPIED!';
-                setTimeout(() => {
-                    smartBtn.innerHTML = codeHtml;
-                }, 2000);
-            };
-        }
+        // Reset Header State
+        modalHeaderContainer.classList.remove('ai-active');
+        modalHeaderContainer.classList.remove('info-expanded');
+        
+        // Reset AI Status Container for new message
+        aiStatusContainer.innerHTML = '';
+        modalSmartBtn.classList.remove('hidden');
+        modalSmartBtn.classList.remove('animate-pulse');
+        modalSmartBtn.disabled = false;
+        modalSmartBtn.onclick = () => handleAISummary(detail);
 
         messageModal.classList.remove('hidden');
         messageModal.classList.add('flex');
@@ -319,11 +429,19 @@ function openMessage(messageId) {
     }
 }
 
+function toggleFullInfo() {
+    if (window.innerWidth >= 640) return; // Only for mobile
+    modalHeaderContainer.classList.toggle('info-expanded');
+}
+
 function closeMessageModal() {
     messageModal.classList.add('opacity-0');
     setTimeout(() => {
         messageModal.classList.remove('flex');
         messageModal.classList.add('hidden');
+        aiStatusContainer.innerHTML = ''; 
+        modalHeaderContainer.classList.remove('ai-active');
+        modalHeaderContainer.classList.remove('info-expanded');
     }, 300);
 }
 
@@ -334,6 +452,7 @@ function onModalBackdrop(event) {
 }
 
 async function deleteAll() {
+    if (!confirm('Are you sure you want to delete ALL messages?')) return;
     try {
         await api('/api/messages/purge', { method: 'POST', body: JSON.stringify({ address: emailInput.value }) });
         inboxMessages = [];
@@ -355,8 +474,8 @@ document.addEventListener('keydown', (event) => {
         await ensureAccount();
         await refreshInbox();
     } catch (error) {
-        systemStatus.innerText = 'Backend Offline';
-        showNotification('Start local backend first');
+        systemStatus.innerText = 'Offline';
+        showNotification('Check connection or backend');
         renderInbox();
     }
 })();
