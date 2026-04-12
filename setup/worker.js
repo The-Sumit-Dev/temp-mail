@@ -237,6 +237,31 @@ export default {
         return new Response(JSON.stringify({ ok: true }), { headers });
       }
 
+      if (method === "POST" && url.pathname === "/api/messages/delete") {
+        let reqAddress = address;
+        let messageId = "";
+        try {
+          const bodyStr = await request.text();
+          if (bodyStr) {
+            const b = JSON.parse(bodyStr);
+            if (b.address) reqAddress = b.address;
+            if (b.id) messageId = b.id;
+          }
+        } catch (e) { }
+
+        if (!reqAddress || !messageId) return new Response(JSON.stringify({ error: "Missing address or id" }), { status: 400, headers });
+
+        const reqPrefix = `msg:${reqAddress.toLowerCase()}:`;
+        const list = await env.TEMP_MAIL_KV.list({ prefix: reqPrefix });
+        for (const key of list.keys) {
+          if (key.name.endsWith(messageId)) {
+            await env.TEMP_MAIL_KV.delete(key.name);
+            return new Response(JSON.stringify({ ok: true }), { headers });
+          }
+        }
+        return new Response(JSON.stringify({ error: "Message not found" }), { status: 404, headers });
+      }
+
       if (method === "GET" && (url.pathname === "/api/account" || url.pathname === "/health")) {
         return new Response(JSON.stringify({
           address: "worker-active@sumitbuilds.tech",
@@ -260,6 +285,86 @@ export default {
           mode: "cloudflare",
           createdAt: new Date().toISOString()
         }), { headers });
+      }
+
+      if (method === "POST" && url.pathname === "/api/ai/summarize") {
+        let prompt = "";
+        try {
+          const b = await request.json();
+          prompt = b.prompt;
+        } catch (e) { }
+
+        if (!prompt) return new Response(JSON.stringify({ error: "No prompt" }), { status: 400, headers });
+
+        const OLLAMA_API_KEY = '0e3942573eaa4e61998bd3c7f76a2ca5.AvWnxIWBUkYym5RcS4whwzIn';
+        
+        // We will try these models in order until one works (Best to Best)
+        const modelsToTry = [
+            "deepseek-v3.1:671b-cloud",
+            "qwen3-coder:480b-cloud",
+            "gpt-oss:120b-cloud",
+            "gpt-oss:20b-cloud",
+            "qwen2.5:cloud"
+        ];
+        let lastError = "";
+
+        for (const targetModel of modelsToTry) {
+          try {
+            const aiResponse = await fetch('https://ollama.com/api/chat', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${OLLAMA_API_KEY}`
+              },
+              body: JSON.stringify({
+                model: targetModel,
+                messages: [{ role: 'user', content: prompt }],
+                stream: false
+              })
+            });
+
+            if (aiResponse.ok) {
+              const data = await aiResponse.json();
+              return new Response(JSON.stringify({ content: data.message?.content || "", model: targetModel }), { headers });
+            } else {
+              const errText = await aiResponse.text();
+              lastError += `[${targetModel}]: ${aiResponse.status} ${errText.slice(0, 50)}... `;
+            }
+          } catch (e) {
+            lastError += `[${targetModel}]: Fetch failed: ${e.message} `;
+          }
+        }
+
+        // If native API failed for all models, try V1 completions as final fallback
+        try {
+          const v1Response = await fetch('https://ollama.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${OLLAMA_API_KEY}`
+            },
+            body: JSON.stringify({
+              model: "gpt-oss:120b",
+              messages: [{ role: 'user', content: prompt }],
+              stream: false
+            })
+          });
+
+          if (v1Response.ok) {
+            const v1Data = await v1Response.json();
+            return new Response(JSON.stringify({ content: v1Data.choices?.[0]?.message?.content || "", model: "gpt-oss:120b-v1" }), { headers });
+          } else {
+            const v1Err = await v1Response.text();
+            lastError += `[v1-fallback]: ${v1Response.status} ${v1Err.slice(0, 50)}`;
+          }
+        } catch (e) {
+          lastError += `[v1-fallback]: Fetch failed: ${e.message}`;
+        }
+
+        return new Response(JSON.stringify({ 
+          error: "All AI models failed to respond", 
+          details: lastError 
+        }), { status: 502, headers });
       }
 
     } catch (err) {
