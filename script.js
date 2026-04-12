@@ -259,7 +259,6 @@ async function refreshInbox() {
 }
 
 async function deleteSingleMessage(messageId) {
-    if (!confirm('Are you sure you want to delete this email?')) return;
     try {
         showNotification('Deleting...');
         await api('/api/messages/delete', {
@@ -452,7 +451,6 @@ function onModalBackdrop(event) {
 }
 
 async function deleteAll() {
-    if (!confirm('Are you sure you want to delete ALL messages?')) return;
     try {
         await api('/api/messages/purge', { method: 'POST', body: JSON.stringify({ address: emailInput.value }) });
         inboxMessages = [];
