@@ -167,7 +167,7 @@ async function ensureAccount() {
         if (localSession) {
             const state = JSON.parse(localSession);
             const ageMs = Date.now() - new Date(state.createdAt).getTime();
-            if (ageMs > 24 * 60 * 60 * 1000) {
+            if (ageMs > 6 * 60 * 60 * 1000) {
                 await api('/api/messages/purge', { method: 'POST', body: JSON.stringify({ address: state.address }) }).catch(() => { });
                 localStorage.removeItem('tempmail_session');
             } else {
