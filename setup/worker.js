@@ -160,7 +160,7 @@ export default {
       const storageKey = `msg:${destAddress}:${Date.now()}:${id}`;
 
       await env.TEMP_MAIL_KV.put(storageKey, JSON.stringify(emailData), {
-        expirationTtl: 43200
+        expirationTtl: 21600
       });
 
     } catch (err) {
